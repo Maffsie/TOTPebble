@@ -2,3 +2,4 @@ build
 configuration.txt
 src/configuration.h
 .lock-waf_darwin_build
+configuration.pyc

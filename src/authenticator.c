@@ -2,81 +2,36 @@
 #include "configuration.h"
 #include "sha1.h"
 
-static Window *window;
-static TextLayer *label_layer;
-static TextLayer *token_layer;
-static TextLayer *ticker_layer;
+static Window      *window;
+static TextLayer   *label_layer;
+static TextLayer   *token_layer;
+static BitmapLayer *ticker_gfx_layer;
+static TextLayer   *ticker_layer;
 
-static int current_token;
-static bool current_token_changed;
-static float timezone = DEFAULT_TIME_ZONE;
+static int          token;
+static bool         token_valid = false;
+static float        timezone    = DEFAULT_TIME_ZONE;
+static struct tm   *curtime;
 
-enum {
-	KEY_TIMEZONE,
-	KEY_VIB_WARN,
-	KEY_VIB_RENEW,
-	KEY_CURRENT_TOKEN
-};
+enum { KEY_TOKEN };
 
-float stof(const char* s) {
-	float rez = 0, fact = 1;
-	if (*s == '-') {
-		s++;
-		fact = -1;
-	}
-	for (int point_seen = 0; *s; s++) {
-		if (*s == '.') {
-			point_seen = 1; 
-			continue;
-		}
-		int d = *s - '0';
-		if (d >= 0 && d <= 9) {
-			if (point_seen) fact /= 10.0f;
-			rez = rez * 10.0f + (float)d;
-		}
-	}
-	return rez * fact;
+static void vibes_tiny_pulse() {
+	vibes_enqueue_custom_pattern((VibePattern) {
+		.durations = (uint32_t[]){ 80 },
+		.num_segments = 1,
+	});
 }
 
-void set_timezone() {
-	if (persist_exists(KEY_TIMEZONE)) {
-		char tz[7];
-		persist_read_string(KEY_TIMEZONE, tz, sizeof(tz));
-		timezone = stof(tz);
-	}
+static void deilluminate(void *ctx) {
+	light_enable(false);
 }
 
-static void in_received_handler(DictionaryIterator *iter, void *context) {
-	Tuple *timezone_tuple = dict_find(iter, KEY_TIMEZONE);
-	Tuple *vib_warn_tuple = dict_find(iter, KEY_VIB_WARN);
-	Tuple *vib_renew_tuple = dict_find(iter, KEY_VIB_RENEW);
-
-	if (timezone_tuple) {
-		persist_write_string(KEY_TIMEZONE, timezone_tuple->value->cstring);
-		set_timezone();
-	}
-	if (vib_warn_tuple) {
-		persist_write_bool(KEY_VIB_WARN, vib_warn_tuple->value->uint8);
-	}
-	if (vib_renew_tuple) {
-		persist_write_bool(KEY_VIB_RENEW, vib_renew_tuple->value->uint8);
-	}
+static void illuminate(void) {
+	light_enable(true);
+	app_timer_register(10000, deilluminate, NULL);
 }
 
-void in_dropped_handler(AppMessageResult reason, void *context) {
-	APP_LOG(APP_LOG_LEVEL_DEBUG, "incoming message from Pebble dropped");
-}
-
-void vibration_handler(int current_seconds) {
-	if (current_seconds == 5 && persist_exists(KEY_VIB_WARN) && persist_read_bool(KEY_VIB_WARN)) {
-		vibes_double_pulse();
-	}
-	if (current_seconds == 30 && persist_exists(KEY_VIB_RENEW) && persist_read_bool(KEY_VIB_RENEW)) {
-		vibes_short_pulse();
-	}
-}
-
-uint32_t get_token() {
+static uint32_t get_token(void) {
 	sha1nfo s;
 	uint8_t ofs;
 	uint32_t otp;
@@ -85,18 +40,17 @@ uint32_t get_token() {
 	// TOTP uses seconds since epoch in the upper half of an 8 byte payload
 	// TOTP is HOTP with a time based payload
 	// HOTP is HMAC with a truncation function to get a short decimal key
-	uint32_t unix_time = time(NULL);
-	int adjustment = 3600 * timezone;
-	unix_time = unix_time - adjustment;
-	unix_time /= 30;
+	uint32_t epoch = time(NULL);
+	epoch -= (int)(3600*timezone);
+	epoch /= 30;
 
-	sha1_time[4] = (unix_time >> 24) & 0xFF;
-	sha1_time[5] = (unix_time >> 16) & 0xFF;
-	sha1_time[6] = (unix_time >> 8) & 0xFF;
-	sha1_time[7] = unix_time & 0xFF;
+	sha1_time[4] = (epoch >> 24) & 0xFF;
+	sha1_time[5] = (epoch >> 16) & 0xFF;
+	sha1_time[6] = (epoch >> 8 ) & 0xFF;
+	sha1_time[7] =  epoch        & 0xFF;
 
 	// First get the HMAC hash of the time payload with the shared key
-	sha1_initHmac(&s, otp_keys[current_token], otp_sizes[current_token]);
+	sha1_initHmac(&s, otp_keys[token], otp_sizes[token]);
 	sha1_write(&s, sha1_time, 8);
 	sha1_resultHmac(&s);
 
@@ -107,78 +61,196 @@ uint32_t get_token() {
 	otp = 0;
 	otp = ((s.state.b[ofs] & 0x7f) << 24) |
 		((s.state.b[ofs + 1] & 0xff) << 16) |
-		((s.state.b[ofs + 2] & 0xff) << 8) |
-		(s.state.b[ofs + 3] & 0xff);
+		((s.state.b[ofs + 2] & 0xff) << 8 ) |
+		( s.state.b[ofs + 3] & 0xff);
 	otp %= 1000000;
 
 	return otp;
 }
 
-void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
-	int current_seconds = 30 - (tick_time->tm_sec % 30);
+// arc-drawing functions from https://raw.githubusercontent.com/Jnmattern/Arc_2.0/master/src/Arc_2.0.c
+static void graphics_draw_arc(GContext *ctx, GPoint center, int radius, int thickness, int start_angle, int end_angle, GColor c) {
+	int32_t xmin = 65535000, xmax = -65535000, ymin = 65535000, ymax = -65535000;
+	int32_t cosStart, sinStart, cosEnd, sinEnd, r, t;
+	int angle_90 = TRIG_MAX_ANGLE / 4;
+	int angle_180 = TRIG_MAX_ANGLE / 2;
+	int angle_270 = 3*TRIG_MAX_ANGLE/4;
 
-	vibration_handler(current_seconds);
+	while (start_angle < 0) start_angle += TRIG_MAX_ANGLE;
+	while (end_angle < 0) end_angle += TRIG_MAX_ANGLE;
 
-	if (current_token_changed || current_seconds == 30) {
-		current_token_changed = false;
+	start_angle %= TRIG_MAX_ANGLE;
+	end_angle %= TRIG_MAX_ANGLE;
 
+	if (end_angle == 0) end_angle = TRIG_MAX_ANGLE;
+
+	if (start_angle > end_angle) {
+		graphics_draw_arc(ctx, center, radius, thickness, start_angle, TRIG_MAX_ANGLE, c);
+		graphics_draw_arc(ctx, center, radius, thickness, 0, end_angle, c);
+		return;
+	}
+	// Calculate bounding box for the arc to be drawn
+	cosStart = cos_lookup(start_angle);
+	sinStart = sin_lookup(start_angle);
+	cosEnd = cos_lookup(end_angle);
+	sinEnd = sin_lookup(end_angle);
+
+	r = radius;
+	// Point 1: radius & start_angle
+	t = r * cosStart;
+	if (t < xmin) xmin = t;
+	if (t > xmax) xmax = t;
+	t = r * sinStart;
+	if (t < ymin) ymin = t;
+	if (t > ymax) ymax = t;
+
+	// Point 2: radius & end_angle
+	t = r * cosEnd;
+	if (t < xmin) xmin = t;
+	if (t > xmax) xmax = t;
+	t = r * sinEnd;
+	if (t < ymin) ymin = t;
+	if (t > ymax) ymax = t;
+
+	r = radius - thickness;
+	// Point 3: radius-thickness & start_angle
+	t = r * cosStart;
+	if (t < xmin) xmin = t;
+	if (t > xmax) xmax = t;
+	t = r * sinStart;
+	if (t < ymin) ymin = t;
+	if (t > ymax) ymax = t;
+
+	// Point 4: radius-thickness & end_angle
+	t = r * cosEnd;
+	if (t < xmin) xmin = t;
+	if (t > xmax) xmax = t;
+	t = r * sinEnd;
+	if (t < ymin) ymin = t;
+	if (t > ymax) ymax = t;
+
+	// Normalization
+	xmin /= TRIG_MAX_RATIO;
+	xmax /= TRIG_MAX_RATIO;
+	ymin /= TRIG_MAX_RATIO;
+	ymax /= TRIG_MAX_RATIO;
+
+	// Corrections if arc crosses X or Y axis
+	if ((start_angle < angle_90) && (end_angle > angle_90))
+		ymax = radius;
+	if ((start_angle < angle_180) && (end_angle > angle_180))
+		xmin = -radius;
+	if ((start_angle < angle_270) && (end_angle > angle_270))
+		ymin = -radius;
+
+	// Slopes for the two sides of the arc
+	float sslope = (float)cosStart / (float)sinStart;
+	float eslope = (float)cosEnd   / (float)sinEnd;
+
+	if (end_angle == TRIG_MAX_ANGLE) eslope = -1000000;
+
+	int ir2 = (radius - thickness) * (radius - thickness);
+	int or2 = radius * radius;
+
+	graphics_context_set_stroke_color(ctx, c);
+
+	for (int x = xmin; x <= xmax; x++) { for (int y = ymin; y <= ymax; y++) {
+		int x2 = x * x;
+		int y2 = y * y;
+		if ((x2 + y2 < or2 && x2 + y2 >= ir2) && (
+				( (y >  0 && start_angle <  angle_180 && x <= y * sslope) ||
+					(y <  0 && start_angle >  angle_180 && x >= y * sslope) ||
+					(y <  0 && start_angle <= angle_180 )                   ||
+					(y == 0 && start_angle <= angle_180 && x <  0)          ||
+					(y == 0 && start_angle == 0         && x >  0))         &&
+				( (y >  0 && end_angle   <  angle_180 && x >= y * eslope) ||
+					(y <  0 && end_angle   >  angle_180 && x <= y * eslope) ||
+					(y >  0 && end_angle   >= angle_180 )                   ||
+					(y == 0 && end_angle   >= angle_180 && x <  0)          ||
+					(y == 0 && start_angle == 0         && x >  0))
+			))
+			graphics_draw_pixel(ctx, GPoint(center.x+x, center.y+y));
+	}}
+}
+
+static void render_ticker(Layer *layer, GContext *ctx) {
+	graphics_context_set_fill_color(ctx, GColorWhite);
+	graphics_fill_circle(ctx, GPoint(71,22), 19);
+	graphics_context_set_fill_color(ctx, GColorBlack);
+	graphics_fill_circle(ctx, GPoint(71,22), 17);
+	int start = 3*TRIG_MAX_ANGLE/4;
+	int end = ((30-(curtime->tm_sec%30))*(TRIG_MAX_ANGLE/30))-(TRIG_MAX_ANGLE/4);
+	graphics_draw_arc(ctx, GPoint(71,22), 19, 4, start, end, GColorWhite);
+}
+
+static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
+	int validity = 30 - (tick_time->tm_sec % 30); curtime=tick_time;
+	if (validity == 30) vibes_tiny_pulse();
+	if (!token_valid || validity == 30) {
+		token_valid = true;
 		static char token_text[] = "000000";
 		snprintf(token_text, sizeof(token_text), "%06lu", get_token());
-
-		text_layer_set_text(label_layer, otp_labels[current_token]);
+		text_layer_set_text(label_layer, otp_labels[token]);
 		text_layer_set_text(token_layer, token_text);
 	}
-
 	static char ticker_text[] = "00";
-	snprintf(ticker_text, sizeof(ticker_text), "%d", current_seconds);
+	snprintf(ticker_text, sizeof(ticker_text), "%d", validity);
 	text_layer_set_text(ticker_layer, ticker_text);
 }
 
 static void click_handler(ClickRecognizerRef recognizer, Window *window) {
 	switch ((int)click_recognizer_get_button_id(recognizer)) {
 		case BUTTON_ID_UP:
-			current_token = (current_token - 1 + NUM_SECRETS) % NUM_SECRETS;
-			current_token_changed = true;
+			token = (token - 1 + NUM_SECRETS) % NUM_SECRETS;
+			token_valid = false;
 			break;
 		case BUTTON_ID_DOWN:
-			current_token = (current_token + 1) % NUM_SECRETS;
-			current_token_changed = true;
+			token = (token + 1) % NUM_SECRETS;
+			token_valid = false;
+			break;
+		case BUTTON_ID_SELECT:
+			illuminate();
 			break;
 	}
-	time_t now = time(NULL);
-	handle_second_tick(gmtime(&now), SECOND_UNIT);
+	time_t t = time(NULL);
+	handle_second_tick(gmtime(&t), SECOND_UNIT);
 }
 
-static void click_config_provider(void *context) {
+static void click_config_provider(void *ctx) {
 	const uint16_t repeat_interval_ms = 100;
-	window_single_repeating_click_subscribe(BUTTON_ID_UP, repeat_interval_ms, (ClickHandler) click_handler);
-	window_single_repeating_click_subscribe(BUTTON_ID_DOWN, repeat_interval_ms, (ClickHandler) click_handler);
+	window_single_repeating_click_subscribe(BUTTON_ID_UP    , repeat_interval_ms, (ClickHandler) click_handler);
+	window_single_repeating_click_subscribe(BUTTON_ID_DOWN  , repeat_interval_ms, (ClickHandler) click_handler);
+	window_single_repeating_click_subscribe(BUTTON_ID_SELECT, repeat_interval_ms, (ClickHandler) click_handler);
 }
 
 static void window_load(Window *window) {
 	Layer *window_layer = window_get_root_layer(window);
 	GRect bounds = layer_get_bounds(window_layer);
 
-	label_layer = text_layer_create((GRect) { .origin = { 0, 20 }, .size = bounds.size });
+	label_layer = text_layer_create((GRect) { .origin = { 0, 8 }, .size = bounds.size });
 	text_layer_set_text_color(label_layer, GColorWhite);
 	text_layer_set_background_color(label_layer, GColorClear);
-	text_layer_set_font(label_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
+	text_layer_set_font(label_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28));
 	text_layer_set_text_alignment(label_layer, GTextAlignmentCenter);
 
-	token_layer = text_layer_create((GRect) { .origin = { 0, 60 }, .size = bounds.size });
+	token_layer = text_layer_create((GRect) { .origin = { 0, 44 }, .size = bounds.size });
 	text_layer_set_text_color(token_layer, GColorWhite);
 	text_layer_set_background_color(token_layer, GColorClear);
-	text_layer_set_font(token_layer, fonts_get_system_font(FONT_KEY_BITHAM_34_MEDIUM_NUMBERS));
+	text_layer_set_font(token_layer, fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_HELVETICA_NEUE_ULTRALIGHT_42)));
 	text_layer_set_text_alignment(token_layer, GTextAlignmentCenter);
 
-	ticker_layer = text_layer_create((GRect) { .origin = { 0, 120 }, .size = bounds.size });
+	ticker_gfx_layer = bitmap_layer_create((GRect) { .origin = { 0, 100 }, .size = bounds.size });
+	layer_set_update_proc(bitmap_layer_get_layer(ticker_gfx_layer), render_ticker);
+
+	ticker_layer = text_layer_create((GRect) { .origin = { 0, 110 }, .size = bounds.size });
 	text_layer_set_text_color(ticker_layer, GColorWhite);
 	text_layer_set_background_color(ticker_layer, GColorClear);
-	text_layer_set_font(ticker_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+	text_layer_set_font(ticker_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18));
 	text_layer_set_text_alignment(ticker_layer, GTextAlignmentCenter);
 
 	layer_add_child(window_layer, text_layer_get_layer(label_layer));
 	layer_add_child(window_layer, text_layer_get_layer(token_layer));
+	layer_add_child(window_layer, bitmap_layer_get_layer(ticker_gfx_layer));
 	layer_add_child(window_layer, text_layer_get_layer(ticker_layer));
 
 	tick_timer_service_subscribe(SECOND_UNIT, &handle_second_tick);
@@ -189,19 +261,12 @@ static void window_unload(Window *window) {
 	text_layer_destroy(label_layer);
 	text_layer_destroy(token_layer);
 	text_layer_destroy(ticker_layer);
-}
-
-static void app_message_init(void) {
-	app_message_open(64 /* inbound_size */, 0 /* outbound_size */);
-	app_message_register_inbox_received(in_received_handler);
-	app_message_register_inbox_dropped(in_dropped_handler);
+	bitmap_layer_destroy(ticker_gfx_layer);
 }
 
 static void init(void) {
-	app_message_init();
-
-	current_token = persist_exists(KEY_CURRENT_TOKEN) ? persist_read_int(KEY_CURRENT_TOKEN) : 0;
-	current_token_changed = true;
+	token = persist_exists(KEY_TOKEN) ? persist_read_int(KEY_TOKEN) : 0;
+	token_valid = false;
 
 	window = window_create();
 	window_set_click_config_provider(window, click_config_provider);
@@ -209,17 +274,16 @@ static void init(void) {
 		.load = window_load,
 		.unload = window_unload,
 	});
-	window_stack_push(window, true /* animated */);
+	window_stack_push(window, true);
 	window_set_background_color(window, GColorBlack);
 
-	set_timezone();
-
-	time_t now = time(NULL);
-	handle_second_tick(gmtime(&now), SECOND_UNIT);
+	time_t t = time(NULL);
+	handle_second_tick(gmtime(&t), SECOND_UNIT);
 }
 
 static void deinit(void) {
-	persist_write_int(KEY_CURRENT_TOKEN, current_token);
+	persist_write_int(KEY_TOKEN, token);
+	light_enable(false);
 	window_destroy(window);
 }
 

@@ -1,19 +1,16 @@
 {
 	"uuid": "011046be-c0c1-464d-af81-381b937447cd",
-	"shortName": "Authenticator",
-	"longName": "Authenticator",
-	"companyName": "Neal",
-	"versionCode": 2,
-	"versionLabel": "2.0",
-	"capabilities": [ "configurable" ],
+	"shortName": "TOTPebble",
+	"longName": "TOTPebble",
+	"companyName": "Maff",
+	"versionCode": 3,
+	"versionLabel": "3.0",
+	"capabilities": [],
 	"watchapp": {
 		"watchface": false
 	},
-	"appKeys": {
-		"timezone": 0,
-		"vib_warn": 1,
-		"vib_renew": 2
-	},
+	"targetPlatforms": ["aplite","basalt"],
+	"sdkVersion": "3",
 	"resources": {
 		"media": [
 			{
@@ -21,6 +18,12 @@
 				"type": "png",
 				"name": "IMAGE_MENU_ICON",
 				"file": "images/twostep_icon.png"
+			},
+			{
+				"characterRegex": "[0-9]",
+				"file": "fonts/HelveticaNeue-UltraLight.ttf",
+				"name": "FONT_HELVETICA_NEUE_ULTRALIGHT_42",
+				"type": "font"
 			}
 		]
 	}
