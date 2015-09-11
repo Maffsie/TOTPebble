@@ -1,25 +1,28 @@
-# Authenticator
+# TOTPebble (pebble-authenticator fork)
 
-Authenticator is a [TOTP](http://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm) based two-factor authentication manager for Pebble. It generates **T**ime-based **O**ne-**t**ime **P**assword for any service offering TOTP two-factor authentication including Google, Dropbox, Facebook, Microsoft, GitHub, Linode, etc.
+TOTPebble generates [TOTP](http://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm) tokens for use with any service supporting the TOTP standard for two-factor authentication, including Google, Microsoft and many other companies and services.
 
-This is a SDK 2.0 port of IEF's authenticator fork, which is a fork of pokey9000's twostep.
+This is an SDK3/bugfix/minor feature update/fork of pebble-authenticator by [Neal](https://github.com/Neal).
 
-Option to vibrate when 5 seconds remain until the token renews and another one for new token.
+Changes from pebble-authenticator:
+* Removed JS configuration, as it added bulk
+* Added a very short pulse when a TOTP token expires, indicating that it has changed
+* Added a 1Password-style validity timer/ticker
+* Changed the font to Helvetica Neue Ultralight because I thought it looked nicer
 
-Uses the JS:Configuration to set the timezone and enable vibration (look for the gear icon near Authenticator in the Pebble mobile app).
-
-Adding secrets via JS:Configuration posseses a security risk of your tokens being sent through a remote server.
-
-Will no longer need to set timezone manually once Pebble SDK supports timezone natively.
+Plans for the future:
+* Maybe a new icon
+* Maybe add in JS configuration if I can figure out a way of avoiding secrets passing through network
+* Pebble Time-specific niceties (colours, antialiasing and whatnot)
+* At present I -think- the wrong functions are being used for getting the current time, messing up timezone stuff, so I want to fix that
 
 ## Requirements
 
-Running the `pebble` command assumes you have Pebble SDK 2.0 installed configured to compile Pebble apps.
-More info on how to set that up found [here](https://developer.getpebble.com/2/getting-started/).
+Requires that Pebble SDK 3.x be installed.
 
 ## Configuration
 
-* Copy `configuration-sample.txt` to `configuration.txt` and add your secrets.
+* Copy `configuration-sample.txt` to `configuration.txt` and add your TOTP secrets.
 
 ## Install
 
