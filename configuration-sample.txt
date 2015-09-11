@@ -1,5 +1,5 @@
-# define the default timezone here
-tz:+1
-# define your secrets, one per line, in the form
-# name:secret
-fake:pskfb2vhfiegni2h
+#Set your TOTP secrets here, format:
+#ServiceOrAccountName:yourTOTPsecret
+#
+#Note that the TOTP secrets are case-insensitive.
+ChangeMe:12341234secretsecret
