@@ -13,8 +13,11 @@ static bool         token_valid = false;
 static float        timezone    = DEFAULT_TIME_ZONE;
 static struct tm   *curtime;
 
+//Persistent storage
+//KEY_TOKEN: Stores which token was last viewed.
 enum { KEY_TOKEN };
 
+//80ms pulse to alert the user that the token has expired
 static void vibes_tiny_pulse() {
 	vibes_enqueue_custom_pattern((VibePattern) {
 		.durations = (uint32_t[]){ 80 },
@@ -22,13 +25,13 @@ static void vibes_tiny_pulse() {
 	});
 }
 
+//Make use of the unused centre button on the pebble; lights up the screen for 15 seconds.
 static void deilluminate(void *ctx) {
 	light_enable(false);
 }
-
 static void illuminate(void) {
 	light_enable(true);
-	app_timer_register(10000, deilluminate, NULL);
+	app_timer_register(15000, deilluminate, NULL);
 }
 
 static uint32_t get_token(void) {
