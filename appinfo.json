@@ -3,8 +3,8 @@
 	"shortName": "TOTPebble",
 	"longName": "TOTPebble",
 	"companyName": "Maff",
-	"versionCode": 3,
-	"versionLabel": "3.0",
+	"versionCode": 4,
+	"versionLabel": "4.0",
 	"capabilities": [],
 	"watchapp": {
 		"watchface": false

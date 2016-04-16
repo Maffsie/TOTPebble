@@ -11,10 +11,10 @@ Changes from pebble-authenticator:
 * Changed the font to Helvetica Neue Ultralight because I thought it looked nicer
 
 Plans for the future:
-* Maybe a new icon
+* Redesign based around the Cards UI paradigm, a-la [pebble's cards-example](https://github.com/pebble-examples/cards-example)
 * Maybe add in JS configuration if I can figure out a way of avoiding secrets passing through network
-* Pebble Time-specific niceties (colours, antialiasing and whatnot)
-* At present I -think- the wrong functions are being used for getting the current time, messing up timezone stuff, so I want to fix that
+* Make proper use of basalt-specific features (colours, namely)
+* Add support for chalk (some UI changes necessary to fit the odd screen)
 
 ## Requirements
 
