@@ -42,8 +42,6 @@ static uint32_t get_token(time_t time_utc) {
 	 * Finally, we have TOTP token length. By default this is 6, some services use different lengths.
 	 */
 	sha1nfo s;
-	uint8_t ofs;
-	uint32_t otp;
 	char sha1_time[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
 	// TOTP uses seconds since epoch in the upper half of an 8 byte payload
@@ -62,16 +60,16 @@ static uint32_t get_token(time_t time_utc) {
 	sha1_write(&s, sha1_time, 8);
 	sha1_resultHmac(&s);
 	
-	//ofs = the offset at which we should truncate. This is computed as (HS length - 1) & 0xF (so where HS length is 20, the end result is 3)
+	//offset = the offset at which we should truncate. This is computed as (HS length - 1) & 0xF (so where HS length is 20, the end result is 3)
 	//Thus, our offset is 4 bytes
-	ofs = s.state.b[HASH_LENGTH-1] & 0xf;
-	otp = 0;
+	uint8_t offset = s.state.b[HASH_LENGTH-1] & 0xf;
+	uint32_t otp = 0;
 	//We then truncate
 	//our OTP is (the byte at [offset] left-shift 24 AND 0x7F) OR ([offset+1] left-shift 16) OR ([offset+2] left-shift 8) OR [offset+3] 
-	otp = ((s.state.b[ofs] & 0x7f) << 24) | (s.state.b[ofs + 1] << 16) | (s.state.b[ofs + 2] << 8) | s.state.b[ofs + 3];
+	otp = ((s.state.b[offset] & 0x7f) << 24) | (s.state.b[offset + 1] << 16) | (s.state.b[offset + 2] << 8) | s.state.b[offset + 3];
 	//To turn it into something we can display as a six-digit integer, modulo by 1000000
 	otp %= 1000000;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %i epoch %i diff %i ofs %i sha1time %s totp %i",(int)time_utc,(int)epoch,(int)(time_utc%30),(int)ofs,sha1_time,(int)otp);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %i epoch %i diff %i offset %i sha1time %s totp %i",(int)time_utc,(int)epoch,(int)(time_utc%30),(int)offset,sha1_time,(int)otp);
 	return otp;
 }
 
