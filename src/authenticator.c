@@ -51,6 +51,7 @@ static uint32_t get_token(time_t time_utc) {
 	// HOTP is HMAC with a truncation function to get a short decimal key
 
 	uint32_t epoch = time_utc - (time_utc % 30);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %i epoch %i diff %i",time_utc,epoch,(time_utc%30));
 
 	sha1_time[4] = (epoch >> 24) & 0xFF;
 	sha1_time[5] = (epoch >> 16) & 0xFF;
