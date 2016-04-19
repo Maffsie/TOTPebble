@@ -8,6 +8,7 @@ static TextLayer   *token_layer;
 static BitmapLayer *ticker_gfx_layer;
 static TextLayer   *ticker_layer;
 
+struct tm          *timestamp;
 static int          token;
 static bool         token_valid = false;
 
@@ -112,6 +113,7 @@ static void render_ticker(Layer *layer, GContext *ctx) {
 }
 
 static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
+	timestamp = &tick_time;
 	int validity = 30 - (tick_time->tm_sec % 30);
 	if (validity == 30) {
     vibes_tiny_pulse();
@@ -145,7 +147,7 @@ static void click_handler(ClickRecognizerRef recognizer, Window *window) {
 			break;
 	}
 	time_t t = time(NULL);
-	handle_second_tick(gmtime(&t), SECOND_UNIT);
+	handle_second_tick(localtime(&t), SECOND_UNIT);
 }
 
 static void click_config_provider(void *ctx) {
