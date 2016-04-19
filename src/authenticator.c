@@ -51,8 +51,14 @@ static uint32_t get_token(void) {
 	// HOTP is HMAC with a truncation function to get a short decimal key
 
 	// We don't need to do TZ correction now; timezone is set on the watch.
-	time_t utctime = time(NULL); long tz_offset = localtime(&utctime)->tm_gmtoff;
-	uint32_t epoch = utctime+tz_offset;
+  time_t curtime_utc = time(NULL);
+  struct tm *curtime = localtime(&curtime_utc);
+  //struct * tm contains tm_gmtoff which indicates the number of seconds east of UTC the timezone is
+	uint32_t epoch = curtime_utc + curtime->tm_gmtoff;
+	//struct * tm contains tm_isdst which is true if DST is in effect.
+	// We can make the assumption that DST will always be 60 minutes ahead.
+  // This generates broken tokens when the timezone is Lord Howe Island, Australia (where DST is 30 minutes).
+	if(curtime->tm_isdst) epoch += (60*60);
 	epoch -= epoch % 30;
 
 	sha1_time[4] = (epoch >> 24) & 0xFF;
