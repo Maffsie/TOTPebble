@@ -18,7 +18,7 @@ Plans for the future:
 
 ## Requirements
 
-Requires that Pebble SDK 3.x be installed.
+Requires that Pebble SDK 3.x be installed, and that your target platform supports SDK3. Aplite devices running a pebbleOS version that does not fully support SDK3 will not be able to run this watchapp.
 
 ## Configuration
 
