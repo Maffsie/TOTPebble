@@ -61,7 +61,7 @@ static uint32_t get_token(time_t time_utc) {
 	
 	//We first get HMAC(K,C) where K is our secret and C is our message (the time)
 	sha1_initHmac(&s, otp_keys[token], otp_sizes[token]);
-	sha1_write(&s, sha1time, 8);
+	sha1_write(&s, (char*)sha1time, 8);
 	sha1_resultHmac(&s);
 	
 	//offset = the offset at which we should truncate. This is computed as (HS length - 1) & 0xF (so where HS length is 20, the end result is 3)
