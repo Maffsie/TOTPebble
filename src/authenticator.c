@@ -52,7 +52,7 @@ static uint32_t get_token(time_t time_utc) {
 	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %u epoch %l diff %u",(unsigned int)time_utc,epoch,(unsigned int)(time_utc%30));
 
 	uint8_t sha1time;
-	for(int i=8;i--;epoch >>= 8) sha1time[i] = epoch
+	for(int i=8;i--;epoch >>= 8) sha1time[i] = epoch;
 	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1time: 0x%X",(unsigned int)sha1time);
 	//sha1_time[4] = (epoch >> 24) & 0xFF;
 	//sha1_time[5] = (epoch >> 16) & 0xFF;
