@@ -42,24 +42,26 @@ static uint32_t get_token(time_t time_utc) {
 	 * Finally, we have TOTP token length. By default this is 6, some services use different lengths.
 	 */
 	sha1nfo s;
-	char sha1_time[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+	
 
 	// TOTP uses seconds since epoch in the upper half of an 8 byte payload
 	// TOTP is HOTP with a time based payload
 	// HOTP is HMAC with a truncation function to get a short decimal key
 
-	uint32_t epoch = time_utc - (time_utc % 30);
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %u epoch %u diff %u",(unsigned int)time_utc,(unsigned int)epoch,(unsigned int)(time_utc%30));
+	long epoch = time(NULL)/30;
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %u epoch %l diff %u",(unsigned int)time_utc,epoch,(unsigned int)(time_utc%30));
 
-	sha1_time[4] = (epoch >> 24) & 0xFF;
-	sha1_time[5] = (epoch >> 16) & 0xFF;
-	sha1_time[6] = (epoch >> 8 ) & 0xFF;
-	sha1_time[7] =  epoch        & 0xFF;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1_time 0x%X%X%X%X%X%X%X%X",(unsigned int)sha1_time[0],(unsigned int)sha1_time[1],(unsigned int)sha1_time[2],(unsigned int)sha1_time[3],(unsigned int)sha1_time[4],(unsigned int)sha1_time[5],(unsigned int)sha1_time[6],(unsigned int)sha1_time[7]);
-
+	uint8_t sha1time;
+	for(int i=8;i--;epoch >>= 8) sha1time[i] = epoch
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1time: 0x%X",(unsigned int)sha1time);
+	//sha1_time[4] = (epoch >> 24) & 0xFF;
+	//sha1_time[5] = (epoch >> 16) & 0xFF;
+	//sha1_time[6] = (epoch >> 8 ) & 0xFF;
+	//sha1_time[7] =  epoch        & 0xFF;
+	
 	//We first get HMAC(K,C) where K is our secret and C is our message (the time)
 	sha1_initHmac(&s, otp_keys[token], otp_sizes[token]);
-	sha1_write(&s, sha1_time, 8);
+	sha1_write(&s, sha1time, 8);
 	sha1_resultHmac(&s);
 	
 	//offset = the offset at which we should truncate. This is computed as (HS length - 1) & 0xF (so where HS length is 20, the end result is 3)
@@ -67,9 +69,8 @@ static uint32_t get_token(time_t time_utc) {
 	uint8_t offset = s.state.b[HASH_LENGTH-1] & 0x0F;
 	uint32_t otp = 0;
 	//We then truncate
-	//our OTP is (the byte at [offset] left-shift 24 AND 0x7F) OR ([offset+1] left-shift 16) OR ([offset+2] left-shift 8) OR [offset+3] 
 	otp = s.state.b[offset] << 24 | s.state.b[offset + 1] << 16 | s.state.b[offset + 2] << 8 | s.state.b[offset + 3];
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"bytes from offset 0x%X: 0x%X",offset,(unsigned int)otp);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"4 bytes beginning at offset 0x%X: 0x%X",offset,(unsigned int)otp);
 	//Then strip the top half byte to prevent something I forget what
 	otp &= 0x7FFFFFFF;
 	APP_LOG(APP_LOG_LEVEL_DEBUG,"final uint32 0x%X",(unsigned int)otp);
