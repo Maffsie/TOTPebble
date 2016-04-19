@@ -1,4 +1,5 @@
 #include <math.h>
+#include <pebble.h>
 #include "sha1.h"
 
 #define TOTP_T0 0
