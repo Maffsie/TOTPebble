@@ -62,16 +62,11 @@ static uint32_t get_token(time_t time_utc) {
 	sha1_initHmac(&s, otp_keys[token], otp_sizes[token]);
 	sha1_write(&s, sha1_time, 8);
 	sha1_resultHmac(&s);
-
-	// Then do the HOTP truncation. HOTP pulls its result from a 31-bit byte
-	// aligned window in the HMAC result, then lops off digits to the left
-	// over 6 digits.
+	
+	//ofs = the offset at which we should truncate. This is computed as (HS length - 1) & 0xF (so where HS length is 20, the end result is 3)
 	ofs = s.state.b[HASH_LENGTH-1] & 0xf;
 	otp = 0;
-	otp = ((s.state.b[ofs] & 0x7f) << 24) |
-		((s.state.b[ofs + 1] & 0xff) << 16) |
-		((s.state.b[ofs + 2] & 0xff) << 8 ) |
-		( s.state.b[ofs + 3] & 0xff);
+	otp = ((s.state.b[ofs] & 0x7f) << 24) | (s.state.b[ofs + 1] << 16) | (s.state.b[ofs + 2] << 8) | s.state.b[ofs + 3];
 	otp %= 1000000;
 
 	return otp;
