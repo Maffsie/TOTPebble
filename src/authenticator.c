@@ -111,7 +111,7 @@ static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
 	if (!token_valid || validity == 30) {
 		token_valid = true;
 		static char token_text[] = "000000";
-		snprintf(token_text, sizeof(token_text), "%06lu", get_token(mktime(&tick_time)));
+		snprintf(token_text, sizeof(token_text), "%06lu", get_token(mktime(tick_time)));
 		text_layer_set_text(label_layer, otp_labels[token]);
 		text_layer_set_text(token_layer, token_text);
 	}
