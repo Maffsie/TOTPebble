@@ -55,7 +55,7 @@ static uint32_t get_token(time_t time_utc) {
 	sha1_time[5] = (epoch >> 16) & 0xFF;
 	sha1_time[6] = (epoch >> 8 ) & 0xFF;
 	sha1_time[7] =  epoch        & 0xFF;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1_time %c %c %c %c",sha1_time[4],sha1_time[5],sha1_time[6],sha1_time[7]);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1_time %u %u %u %u",(unsigned int)sha1_time[4],(unsigned int)sha1_time[5],(unsigned int)sha1_time[6],(unsigned int)sha1_time[7]);
 
 	//We first get HMAC(K,C) where K is our secret and C is our message (the time)
 	sha1_initHmac(&s, otp_keys[token], otp_sizes[token]);
