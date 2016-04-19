@@ -50,9 +50,8 @@ static uint32_t get_token(void) {
 	// TOTP is HOTP with a time based payload
 	// HOTP is HMAC with a truncation function to get a short decimal key
 
-	// We don't need to do TZ correction now; pebble sdk documentation states:
-	// time_t time(time_t * tloc): Note that the epoch is adjusted for Timezones and Daylight Savings.
-	uint32_t epoch = time(NULL);
+	// We don't need to do TZ correction now; timezone is set on the watch.
+	uint32_t epoch = time(NULL); long tz_offset = localtime(&epoch)->tm_gmtoff; epoch += tz_offset;
 	epoch -= epoch % 30;
 
 	sha1_time[4] = (epoch >> 24) & 0xFF;
