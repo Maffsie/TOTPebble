@@ -75,7 +75,7 @@ static uint32_t get_token(time_t time_utc) {
 	APP_LOG(APP_LOG_LEVEL_DEBUG,"final uint32 %X",(unsigned int)otp);
 	//To turn it into something we can display as a six-digit integer, modulo by 1000000
 	otp %= 1000000;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"totp %u formatted %06lu",(unsigned int)otp,(unsigned int)otp);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"totp %u formatted %06lu",(unsigned int)otp,otp);
 	return otp;
 }
 
