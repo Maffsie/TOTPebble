@@ -64,9 +64,9 @@ static uint32_t get_token(time_t time_utc) {
 	
 	//offset = the offset at which we should truncate. This is computed as (HS length - 1) & 0xF (so where HS length is 20, the end result is 3)
 	//Thus, our offset is 4 bytes
-	uint8_t offset = s.state.b[HASH_LENGTH-1] & 0xf;
+	char offset = s.state.b[HASH_LENGTH-1]; offset &= 0x0F;
 	uint32_t otp = 0;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"offset %u hashlen %i",offset,HASH_LENGTH);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"offset %u",(unsigned int)offset);
 	//We then truncate
 	//our OTP is (the byte at [offset] left-shift 24 AND 0x7F) OR ([offset+1] left-shift 16) OR ([offset+2] left-shift 8) OR [offset+3] 
 	otp = ((s.state.b[offset] & 0x7f) << 24) | (s.state.b[offset + 1] << 16) | (s.state.b[offset + 2] << 8) | s.state.b[offset + 3];
