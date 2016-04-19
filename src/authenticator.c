@@ -1,6 +1,6 @@
 #include <pebble.h>
 #include "configuration.h"
-#include "totp.h"
+#include "lib/totp.h"
 
 static Window      *window;
 static TextLayer   *label_layer;

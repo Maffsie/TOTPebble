@@ -1,5 +1,5 @@
 #include <math.h>
-#include "lib/sha1.h"
+#include "sha1.h"
 
 #define TOTP_T0 0
 #define TOTP_Ti 30
