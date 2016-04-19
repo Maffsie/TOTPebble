@@ -1,6 +1,6 @@
 #include <pebble.h>
 #include "configuration.h"
-#include "sha1.h"
+#include "lib/sha1.h"
 
 static Window      *window;
 static TextLayer   *label_layer;
@@ -51,24 +51,27 @@ static uint32_t get_token(time_t time_utc) {
 	// HOTP is HMAC with a truncation function to get a short decimal key
 
 	uint32_t epoch = time_utc - (time_utc % 30);
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %i epoch %i diff %i",(int)time_utc,(int)epoch,(int)(time_utc%30));
 
 	sha1_time[4] = (epoch >> 24) & 0xFF;
 	sha1_time[5] = (epoch >> 16) & 0xFF;
 	sha1_time[6] = (epoch >> 8 ) & 0xFF;
 	sha1_time[7] =  epoch        & 0xFF;
 
-	// First get the HMAC hash of the time payload with the shared key
+	//We first get HMAC(K,C) where K is our secret and C is our message (the time)
 	sha1_initHmac(&s, otp_keys[token], otp_sizes[token]);
 	sha1_write(&s, sha1_time, 8);
 	sha1_resultHmac(&s);
 	
 	//ofs = the offset at which we should truncate. This is computed as (HS length - 1) & 0xF (so where HS length is 20, the end result is 3)
+	//Thus, our offset is 4 bytes
 	ofs = s.state.b[HASH_LENGTH-1] & 0xf;
 	otp = 0;
+	//We then truncate
+	//our OTP is (the byte at [offset] left-shift 24 AND 0x7F) OR ([offset+1] left-shift 16) OR ([offset+2] left-shift 8) OR [offset+3] 
 	otp = ((s.state.b[ofs] & 0x7f) << 24) | (s.state.b[ofs + 1] << 16) | (s.state.b[ofs + 2] << 8) | s.state.b[ofs + 3];
+	//To turn it into something we can display as a six-digit integer, modulo by 1000000
 	otp %= 1000000;
-
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %i epoch %i diff %i ofs %i sha1time %s totp %i",(int)time_utc,(int)epoch,(int)(time_utc%30),(int)ofs,sha1_time,(int)otp);
 	return otp;
 }
 
