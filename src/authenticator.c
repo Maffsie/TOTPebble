@@ -51,7 +51,8 @@ static uint32_t get_token(void) {
 	// HOTP is HMAC with a truncation function to get a short decimal key
 
 	// We don't need to do TZ correction now; timezone is set on the watch.
-	uint32_t epoch = time(NULL); long tz_offset = localtime(&epoch)->tm_gmtoff; epoch += tz_offset;
+	time_t utctime = time(NULL); long tz_offset = localtime(&utctime)->tm_gmtoff;
+	uint32_t epoch = utctime+tz_offset;
 	epoch -= epoch % 30;
 
 	sha1_time[4] = (epoch >> 24) & 0xFF;
