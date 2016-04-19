@@ -6,4 +6,4 @@
 #define TOTP_Ti 30
 #define TOTP_LEN 6
 
-static uint32_t get_token(time_t time_utc, unsigned char key[], uint32_t ksize);
+uint32_t get_token(time_t time_utc, unsigned char key[], uint32_t ksize);

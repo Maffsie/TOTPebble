@@ -29,7 +29,7 @@
  * This formula makes the assumption that the desired token length is 6 digits, however this is a fairly safe assumption to make.
  */
 
-static uint32_t get_token(time_t time_utc, unsigned char key[], uint32_t ksize) {
+uint32_t get_token(time_t time_utc, unsigned char key[], uint32_t ksize) {
 	// Get the current epoch time and store it in a reasonable way for sha1 operations
 	long epoch = (time(NULL) - T0) / Ti;
 	uint8_t sha1time[8];
