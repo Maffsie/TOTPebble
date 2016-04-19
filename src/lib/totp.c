@@ -31,7 +31,7 @@
 
 uint32_t get_token(time_t time_utc, unsigned char key[], uint32_t ksize) {
 	// Get the current epoch time and store it in a reasonable way for sha1 operations
-	long epoch = (time(NULL) - T0) / Ti;
+	long epoch = (time(NULL) - TOTP_T0) / TOTP_Ti;
 	uint8_t sha1time[8];
 	for(int i=8;i--;epoch >>= 8) sha1time[i] = epoch;
 	
@@ -56,7 +56,7 @@ uint32_t get_token(time_t time_utc, unsigned char key[], uint32_t ksize) {
 	// Then strip the topmost bit to prevent it being handled as a signed integer.
 	otp &= 0x7FFFFFFF;
 	// To obtain D as something we can display as a six-digit integer, modulo by 1000000
-	otp %= pow(10,TOTP_LEN);
+	otp %= (unsigned int)pow(10,TOTP_LEN);
 	// Return the result.
 	return otp;
 }
