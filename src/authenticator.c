@@ -8,7 +8,6 @@ static TextLayer   *token_layer;
 static BitmapLayer *ticker_gfx_layer;
 static TextLayer   *ticker_layer;
 
-struct tm          *timestamp;
 static int          token;
 static bool         token_valid = false;
 
@@ -53,13 +52,7 @@ static uint32_t get_token(void) {
 
 	// We don't need to do TZ correction now; timezone is set on the watch.
   time_t curtime_utc = time(NULL);
-  struct tm *curtime = localtime(&curtime_utc);
-  //struct * tm contains tm_gmtoff which indicates the number of seconds east of UTC the timezone is
-	uint32_t epoch = curtime_utc + curtime->tm_gmtoff;
-	//struct * tm contains tm_isdst which is true if DST is in effect.
-	// We can make the assumption that DST will always be 60 minutes ahead.
-  // This generates broken tokens when the timezone is Lord Howe Island, Australia (where DST is 30 minutes).
-	if(curtime->tm_isdst) epoch += (60*60);
+	uint32_t epoch = curtime_utc;
 	epoch -= epoch % 30;
 
 	sha1_time[4] = (epoch >> 24) & 0xFF;
@@ -113,7 +106,6 @@ static void render_ticker(Layer *layer, GContext *ctx) {
 }
 
 static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
-	timestamp = &tick_time;
 	int validity = 30 - (tick_time->tm_sec % 30);
 	if (validity == 30) {
     vibes_tiny_pulse();
@@ -147,7 +139,7 @@ static void click_handler(ClickRecognizerRef recognizer, Window *window) {
 			break;
 	}
 	time_t t = time(NULL);
-	handle_second_tick(localtime(&t), SECOND_UNIT);
+	handle_second_tick(gmtime(&t), SECOND_UNIT);
 }
 
 static void click_config_provider(void *ctx) {
