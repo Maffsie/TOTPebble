@@ -16,7 +16,7 @@ static bool         token_valid = false;
 enum { KEY_TOKEN };
 
 //80ms pulse to alert the user that the token has expired
-static void vibes_tiny_pulse() {
+static void vibes_tiny_pulse(void) {
 	vibes_enqueue_custom_pattern((VibePattern) {
 		.durations = (uint32_t[]){ 80 },
 		.num_segments = 1,
@@ -32,7 +32,7 @@ static void illuminate(int secs) {
 	app_timer_register(secs*1000, deilluminate, NULL);
 }
 
-static uint32_t get_token(void) {
+static uint32_t get_token(time_t time_utc) {
 	/* TOTP calculation is fun.
 	 * We first have K, our authentication key, which is a bytestring stored as base32 text
 	 * The configure script converts this back to bytes as part of generating the header
@@ -50,10 +50,7 @@ static uint32_t get_token(void) {
 	// TOTP is HOTP with a time based payload
 	// HOTP is HMAC with a truncation function to get a short decimal key
 
-	// We don't need to do TZ correction now; timezone is set on the watch.
-  time_t curtime_utc = time(NULL);
-	uint32_t epoch = curtime_utc;
-	epoch -= epoch % 30;
+	uint32_t epoch = time_utc - (time_utc % 30);
 
 	sha1_time[4] = (epoch >> 24) & 0xFF;
 	sha1_time[5] = (epoch >> 16) & 0xFF;
@@ -80,48 +77,47 @@ static uint32_t get_token(void) {
 }
 
 static void render_ticker(Layer *layer, GContext *ctx) {
-  //get current time
-  time_t curtime_utc = time(NULL);
-  struct tm *curtime = localtime(&curtime_utc);
-  //Draw outer circle
+	//get current time
+	time_t curtime_utc = time(NULL);
+	struct tm *curtime = localtime(&curtime_utc);
+	//Draw outer circle
 	graphics_context_set_fill_color(ctx, GColorWhite);
 	graphics_fill_circle(ctx, GPoint(71,22), 19);
-  //Erase part of the outer circle that we don't want
+	//Erase part of the outer circle that we don't want
 	graphics_context_set_fill_color(ctx, GColorBlack);
 	graphics_fill_circle(ctx, GPoint(71,22), 17);
-  //Calculate arc size
-  int validity = 30 - (curtime->tm_sec % 30);
+	//Calculate arc size
+	int validity = 30 - (curtime->tm_sec % 30);
 	int start = DEG_TO_TRIGANGLE(0);
 	int end = DEG_TO_TRIGANGLE(12*validity);
-  //Draw arc
-  graphics_context_set_fill_color(ctx, GColorWhite);
-  graphics_context_set_stroke_color(ctx, GColorWhite);
-  graphics_context_set_stroke_width(ctx, 4);
-  graphics_draw_arc(ctx,
-    (GRect) {
-      .origin = GPoint(54,5),
-      .size = GSize(35,35)
-    },
-    GOvalScaleModeFitCircle,start,end);
+	//Draw arc
+	graphics_context_set_fill_color(ctx, GColorWhite);
+	graphics_context_set_stroke_color(ctx, GColorWhite);
+	graphics_context_set_stroke_width(ctx, 4);
+	graphics_draw_arc(ctx,
+		(GRect) {
+			.origin = GPoint(54,5),
+			.size = GSize(35,35)
+		},
+		GOvalScaleModeFitCircle,start,end);
 }
 
 static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
 	int validity = 30 - (tick_time->tm_sec % 30);
 	if (validity == 30) {
-    vibes_tiny_pulse();
-    illuminate(3);
-  }
+		vibes_tiny_pulse();
+		illuminate(3);
+	}
 	if (!token_valid || validity == 30) {
 		token_valid = true;
 		static char token_text[] = "000000";
-		snprintf(token_text, sizeof(token_text), "%06lu", get_token());
+		snprintf(token_text, sizeof(token_text), "%06lu", get_token(mktime(&tick_time)));
 		text_layer_set_text(label_layer, otp_labels[token]);
 		text_layer_set_text(token_layer, token_text);
 	}
 	static char ticker_text[] = "00";
 	snprintf(ticker_text, sizeof(ticker_text), "%d", validity);
 	text_layer_set_text(ticker_layer, ticker_text);
-  layer_mark_dirty(bitmap_layer_get_layer(ticker_gfx_layer));
 }
 
 static void click_handler(ClickRecognizerRef recognizer, Window *window) {
