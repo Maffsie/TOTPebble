@@ -34,49 +34,60 @@ static void illuminate(int secs) {
 
 static uint32_t get_token(time_t time_utc) {
 	/* TOTP calculation is fun.
-	 * We first have K, our authentication key, which is a bytestring stored as base32 text
+	 *
+	 * At its core, a TOTP token can be defined via the following:
+	 * K is predefined as a series of arbitrary bytes forming a secret
+	 * C = ( TIME() - T0 ) / Ti, given that TIME() returns the current unix epoch
+	 * HS = HMAC(K,C)
+	 * D = Truncate(HS)
+	 *
+	 * It starts off with HS = HMAC(K,C).
+	 * We first have K, our authentication key, which is a bytestring typically stored as base32 text
 	 * The configure script converts this back to bytes as part of generating the header
-	 * We then have T0 and TI (epoch and validity interval). By default, these are 1/1/1900 and 30
-	 * I've never heard of anything that used custom epochs or intervals.
-	 * We then have our hash method, SHA-1, which is used to generate the token
-	 * Finally, we have TOTP token length. By default this is 6, some services use different lengths.
+	 * We then have T0 and Ti (epoch and validity interval). These are almost always defined as T0 = 0, Ti = 30
+	 * We can then derive C, where C = ( TIME() - T0 ) / Ti
+	 * From HMAC(K,C) we then derive HS, which is the resulting 160-bit message digest..
+	 * We then compute the HOTP, which takes HS and applies dynamic truncation.
+	 * Dynamic truncation involves calculating first the offset, defined as O.
+	 * We calculate O as being the lower four bits of the last byte in HS.
+	 * Thus, O = HS[DIGEST_LENGTH - 1] & 0x0F
+	 * From this, we truncate HS to four bytes beginning at byte O, which may be anywhere from 0 to F (15), to obtain P.
+	 * Thus, P = HS[O+0..3]
+	 * After truncating, we strip the most significant bit in order to prevent P from being interpreted as signed.
+	 * Thus, P = P & 0x7FFFFFFF
+	 * Finally, in order to derive D as a number below 1000000, we modulo P against this.
+	 * Thus, D = P % 1000000.
+	 * With D now known, we have our TOTP token.
+	 *
+	 * This formula makes the assumption that the desired token length is 6 digits, however this is a fairly safe assumption to make.
 	 */
-	sha1nfo s;
-	
 
-	// TOTP uses seconds since epoch in the upper half of an 8 byte payload
-	// TOTP is HOTP with a time based payload
-	// HOTP is HMAC with a truncation function to get a short decimal key
-
+	// Get the current epoch time and store it in a reasonable way for sha1 operations
 	long epoch = time(NULL)/30;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %u epoch %li diff %u",(unsigned int)time_utc,(long int)epoch,(unsigned int)(time_utc%30));
-
 	uint8_t sha1time[8];
 	for(int i=8;i--;epoch >>= 8) sha1time[i] = epoch;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1time: 0x%X",(unsigned int)sha1time);
-	//sha1_time[4] = (epoch >> 24) & 0xFF;
-	//sha1_time[5] = (epoch >> 16) & 0xFF;
-	//sha1_time[6] = (epoch >> 8 ) & 0xFF;
-	//sha1_time[7] =  epoch        & 0xFF;
 	
-	//We first get HMAC(K,C) where K is our secret and C is our message (the time)
+	sha1nfo s;
+	// We first get HMAC(K,C) where K is our secret and C is our message (the time)
 	sha1_initHmac(&s, otp_keys[token], otp_sizes[token]);
 	sha1_write(&s, (char*)sha1time, 8);
 	sha1_resultHmac(&s);
 	
-	//offset = the offset at which we should truncate. This is computed as (HS length - 1) & 0xF (so where HS length is 20, the end result is 3)
-	//Thus, our offset is 4 bytes
+	// Now that we have the message digest (HS), we can move on to HOTP.
+	// HOTP is HMAC with dynamic truncation. An explanation of dynamic truncation with HMAC is below:
+	// Since HS (the result of HMAC(K,C)) is a 160-bit (20-byte) hash, we take lower four bits of the last byte (HS[DIGEST_LENGTH-1] & 0x0F)
+	// And use that as the beginning of our truncated bytes. We truncate to four bytes, so this method allows for truncation anywhere in HS
+	// While guaranteeing that there will be three bytes to the right of the offset.
+	// We first obtain the offset, O.
 	uint8_t offset = s.state.b[HASH_LENGTH-1] & 0x0F;
 	uint32_t otp = 0;
-	//We then truncate
+	// We then truncate to the four bytes beginning at O, to obtain P.
 	otp = s.state.b[offset] << 24 | s.state.b[offset + 1] << 16 | s.state.b[offset + 2] << 8 | s.state.b[offset + 3];
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"4 bytes beginning at offset 0x%X: 0x%X",offset,(unsigned int)otp);
-	//Then strip the top half byte to prevent something I forget what
+	// Then strip the topmost bit to prevent it being handled as a signed integer.
 	otp &= 0x7FFFFFFF;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"final uint32 0x%X",(unsigned int)otp);
-	//To turn it into something we can display as a six-digit integer, modulo by 1000000
+	// To obtain D as something we can display as a six-digit integer, modulo by 1000000
 	otp %= 1000000;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"totp %u formatted %06lu",(unsigned int)otp,otp);
+	// Return the result.
 	return otp;
 }
 
