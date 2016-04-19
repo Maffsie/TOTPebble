@@ -55,7 +55,7 @@ static uint32_t get_token(time_t time_utc) {
 	sha1_time[5] = (epoch >> 16) & 0xFF;
 	sha1_time[6] = (epoch >> 8 ) & 0xFF;
 	sha1_time[7] =  epoch        & 0xFF;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1_time %u %u %u %u",(unsigned int)sha1_time[4],(unsigned int)sha1_time[5],(unsigned int)sha1_time[6],(unsigned int)sha1_time[7]);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1_time 0x%X%X%X%X%X%X%X%X",(unsigned int)sha1_time[0],(unsigned int)sha1_time[1],(unsigned int)sha1_time[2],(unsigned int)sha1_time[3],(unsigned int)sha1_time[4],(unsigned int)sha1_time[5],(unsigned int)sha1_time[6],(unsigned int)sha1_time[7]);
 
 	//We first get HMAC(K,C) where K is our secret and C is our message (the time)
 	sha1_initHmac(&s, otp_keys[token], otp_sizes[token]);
@@ -69,10 +69,10 @@ static uint32_t get_token(time_t time_utc) {
 	//We then truncate
 	//our OTP is (the byte at [offset] left-shift 24 AND 0x7F) OR ([offset+1] left-shift 16) OR ([offset+2] left-shift 8) OR [offset+3] 
 	otp = s.state.b[offset] << 24 | s.state.b[offset + 1] << 16 | s.state.b[offset + 2] << 8 | s.state.b[offset + 3];
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"bytes from %X: %X",offset,(unsigned int)otp);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"bytes from offset 0x%X: 0x%X",offset,(unsigned int)otp);
 	//Then strip the top half byte to prevent something I forget what
 	otp &= 0x7FFFFFFF;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"final uint32 %X",(unsigned int)otp);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"final uint32 0x%X",(unsigned int)otp);
 	//To turn it into something we can display as a six-digit integer, modulo by 1000000
 	otp %= 1000000;
 	APP_LOG(APP_LOG_LEVEL_DEBUG,"totp %u formatted %06lu",(unsigned int)otp,otp);
