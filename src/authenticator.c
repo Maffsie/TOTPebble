@@ -49,13 +49,13 @@ static uint32_t get_token(time_t time_utc) {
 	// HOTP is HMAC with a truncation function to get a short decimal key
 
 	uint32_t epoch = time_utc - (time_utc % 30);
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %u epoch %u diff %u",time_utc,epoch,(time_utc%30))
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"time_utc %u epoch %u diff %u",(unsigned int)time_utc,(unsigned int)epoch,(unsigned int)(time_utc%30));
 
 	sha1_time[4] = (epoch >> 24) & 0xFF;
 	sha1_time[5] = (epoch >> 16) & 0xFF;
 	sha1_time[6] = (epoch >> 8 ) & 0xFF;
 	sha1_time[7] =  epoch        & 0xFF;
-	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1_time %c",sha1_time);
+	APP_LOG(APP_LOG_LEVEL_DEBUG,"sha1_time %c %c %c %c",sha1_time[4],sha1_time[5],sha1_time[6],sha1_time[7]);
 
 	//We first get HMAC(K,C) where K is our secret and C is our message (the time)
 	sha1_initHmac(&s, otp_keys[token], otp_sizes[token]);
